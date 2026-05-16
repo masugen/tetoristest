@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HTML5 テトリス</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app" aria-labelledby="game-title">
+      <section class="hero">
+        <p class="eyebrow">HTML5 Canvas Game</p>
+        <h1 id="game-title">テトリス</h1>
+        <p class="description">
+          落ちてくるブロックを回転・移動して横一列をそろえよう。キーボードでも画面ボタンでも遊べます。
+        </p>
+      </section>
+
+      <section class="game-shell" aria-label="テトリスゲーム">
+        <div class="board-wrap">
+          <canvas id="board" width="300" height="600" aria-label="テトリスの盤面" role="img"></canvas>
+          <div id="overlay" class="overlay is-visible">
+            <div class="overlay-card">
+              <h2 id="overlay-title">準備完了</h2>
+              <p id="overlay-message">スタートを押してゲームを開始します。</p>
+            </div>
+          </div>
+        </div>
+
+        <aside class="panel" aria-label="ゲーム情報と操作">
+          <div class="next-card">
+            <h2>次のブロック</h2>
+            <canvas id="next" width="120" height="120" aria-label="次のブロック" role="img"></canvas>
+          </div>
+
+          <dl class="stats">
+            <div>
+              <dt>スコア</dt>
+              <dd id="score">0</dd>
+            </div>
+            <div>
+              <dt>ライン</dt>
+              <dd id="lines">0</dd>
+            </div>
+            <div>
+              <dt>レベル</dt>
+              <dd id="level">1</dd>
+            </div>
+          </dl>
+
+          <div class="actions">
+            <button id="start-button" type="button">スタート</button>
+            <button id="pause-button" type="button" disabled>一時停止</button>
+            <button id="reset-button" type="button">リセット</button>
+          </div>
+
+          <div class="touch-controls" aria-label="タッチ操作">
+            <button data-action="left" type="button">←</button>
+            <button data-action="rotate" type="button">回転</button>
+            <button data-action="right" type="button">→</button>
+            <button data-action="down" type="button">↓</button>
+            <button data-action="drop" type="button">落下</button>
+          </div>
+
+          <section class="help">
+            <h2>操作方法</h2>
+            <ul>
+              <li><kbd>←</kbd>/<kbd>→</kbd>: 左右移動</li>
+              <li><kbd>↑</kbd> または <kbd>X</kbd>: 回転</li>
+              <li><kbd>↓</kbd>: ソフトドロップ</li>
+              <li><kbd>Space</kbd>: ハードドロップ</li>
+              <li><kbd>P</kbd>: 一時停止</li>
+            </ul>
+          </section>
+        </aside>
+      </section>
+    </main>
+
+    <script src="game.js" defer></script>
+  </body>
+</html>
