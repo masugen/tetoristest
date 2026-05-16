@@ -69,6 +69,7 @@ const overlayMessage = document.querySelector('#overlay-message');
 const startButton = document.querySelector('#start-button');
 const pauseButton = document.querySelector('#pause-button');
 const resetButton = document.querySelector('#reset-button');
+const soundButton = document.querySelector('#sound-button');
 
 let board;
 let currentPiece;
@@ -83,6 +84,137 @@ let animationId;
 let running;
 let paused;
 let gameOver;
+let audioContext;
+let soundEnabled = true;
+
+function updateSoundButton() {
+  soundButton.textContent = `サウンド: ${soundEnabled ? 'ON' : 'OFF'}`;
+  soundButton.setAttribute('aria-pressed', String(soundEnabled));
+}
+
+function getAudioContext() {
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+
+  if (!AudioContext) {
+    return null;
+  }
+
+  if (!audioContext) {
+    audioContext = new AudioContext();
+  }
+
+  if (audioContext.state === 'suspended') {
+    audioContext.resume();
+  }
+
+  return audioContext;
+}
+
+function playTone({ frequency, duration = 0.08, type = 'sine', volume = 0.12, delay = 0, endFrequency }) {
+  if (!soundEnabled) return;
+
+  const context = getAudioContext();
+  if (!context) return;
+
+  const startTime = context.currentTime + delay;
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(frequency, startTime);
+  if (endFrequency) {
+    oscillator.frequency.exponentialRampToValueAtTime(endFrequency, startTime + duration);
+  }
+
+  gain.gain.setValueAtTime(0.0001, startTime);
+  gain.gain.exponentialRampToValueAtTime(volume, startTime + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+  oscillator.connect(gain);
+  gain.connect(context.destination);
+  oscillator.start(startTime);
+  oscillator.stop(startTime + duration + 0.02);
+}
+
+function playNoise({ duration = 0.12, volume = 0.08 } = {}) {
+  if (!soundEnabled) return;
+
+  const context = getAudioContext();
+  if (!context) return;
+
+  const bufferSize = Math.max(1, Math.floor(context.sampleRate * duration));
+  const buffer = context.createBuffer(1, bufferSize, context.sampleRate);
+  const output = buffer.getChannelData(0);
+
+  for (let i = 0; i < bufferSize; i += 1) {
+    output[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+  }
+
+  const noise = context.createBufferSource();
+  const gain = context.createGain();
+  noise.buffer = buffer;
+  gain.gain.setValueAtTime(volume, context.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + duration);
+  noise.connect(gain);
+  gain.connect(context.destination);
+  noise.start();
+}
+
+function playSound(name) {
+  const lineThemes = {
+    line1: [523.25, 659.25, 783.99],
+    line2: [587.33, 739.99, 880, 987.77],
+    line3: [659.25, 783.99, 987.77, 1174.66],
+    line4: [783.99, 987.77, 1174.66, 1567.98],
+  };
+
+  if (lineThemes[name]) {
+    lineThemes[name].forEach((frequency, index) => {
+      playTone({ frequency, duration: 0.12, type: 'triangle', volume: 0.11, delay: index * 0.055 });
+    });
+    return;
+  }
+
+  const sounds = {
+    start: () => {
+      [261.63, 329.63, 392].forEach((frequency, index) => {
+        playTone({ frequency, duration: 0.11, type: 'triangle', volume: 0.1, delay: index * 0.06 });
+      });
+    },
+    move: () => playTone({ frequency: 220, duration: 0.045, type: 'square', volume: 0.045, endFrequency: 185 }),
+    rotate: () => playTone({ frequency: 330, duration: 0.07, type: 'triangle', volume: 0.07, endFrequency: 495 }),
+    softDrop: () => playTone({ frequency: 130.81, duration: 0.035, type: 'sine', volume: 0.045 }),
+    hardDrop: () => {
+      playNoise({ duration: 0.1, volume: 0.08 });
+      playTone({ frequency: 95, duration: 0.1, type: 'sawtooth', volume: 0.075, endFrequency: 55 });
+    },
+    lock: () => playTone({ frequency: 110, duration: 0.075, type: 'sawtooth', volume: 0.055, endFrequency: 82.41 }),
+    pause: () => playTone({ frequency: 392, duration: 0.08, type: 'triangle', volume: 0.075, endFrequency: 261.63 }),
+    resume: () => playTone({ frequency: 261.63, duration: 0.08, type: 'triangle', volume: 0.075, endFrequency: 392 }),
+    levelUp: () => {
+      [392, 493.88, 587.33, 783.99].forEach((frequency, index) => {
+        playTone({ frequency, duration: 0.12, type: 'triangle', volume: 0.11, delay: index * 0.065 });
+      });
+    },
+    gameOver: () => {
+      [392, 329.63, 261.63, 196].forEach((frequency, index) => {
+        playTone({ frequency, duration: 0.16, type: 'sawtooth', volume: 0.08, delay: index * 0.09 });
+      });
+    },
+    reset: () => playTone({ frequency: 246.94, duration: 0.08, type: 'triangle', volume: 0.07, endFrequency: 164.81 }),
+  };
+
+  sounds[name]?.();
+}
+
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+  updateSoundButton();
+
+  if (soundEnabled) {
+    playSound('resume');
+  }
+}
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => Array(COLS).fill(null));
@@ -118,6 +250,7 @@ function resetState() {
   cancelAnimationFrame(animationId);
   updateStats();
   updateButtons();
+  updateSoundButton();
   draw();
   drawNext();
   showOverlay('準備完了', 'スタートを押してゲームを開始します。');
@@ -185,6 +318,7 @@ function mergePiece() {
 
 function clearLines() {
   let cleared = 0;
+  const previousLevel = level;
 
   outer: for (let y = ROWS - 1; y >= 0; y -= 1) {
     for (let x = 0; x < COLS; x += 1) {
@@ -204,6 +338,11 @@ function clearLines() {
     dropInterval = Math.max(MIN_DROP_MS, BASE_DROP_MS - (level - 1) * 75);
     updateStats();
   }
+
+  return {
+    cleared,
+    leveledUp: level > previousLevel,
+  };
 }
 
 function spawnPiece() {
@@ -225,6 +364,7 @@ function softDrop() {
     currentPiece.y += 1;
     score += 1;
     dropCounter = 0;
+    playSound('softDrop');
     updateStats();
   } else {
     lockPiece();
@@ -243,13 +383,22 @@ function hardDrop() {
   }
   score += distance * 2;
   updateStats();
-  lockPiece();
+  lockPiece({ hard: true });
   draw();
 }
 
-function lockPiece() {
+function lockPiece({ hard = false } = {}) {
   mergePiece();
-  clearLines();
+  const { cleared, leveledUp } = clearLines();
+
+  if (leveledUp) {
+    playSound('levelUp');
+  } else if (cleared > 0) {
+    playSound(`line${Math.min(cleared, 4)}`);
+  } else {
+    playSound(hard ? 'hardDrop' : 'lock');
+  }
+
   spawnPiece();
   dropCounter = 0;
 }
@@ -258,6 +407,7 @@ function movePiece(direction) {
   if (!canControl()) return;
   if (!collides(currentPiece, direction, 0)) {
     currentPiece.x += direction;
+    playSound('move');
     draw();
   }
 }
@@ -272,6 +422,7 @@ function rotatePiece() {
   if (kick !== undefined) {
     currentPiece.x += kick;
     currentPiece.matrix = rotated;
+    playSound('rotate');
     draw();
   }
 }
@@ -285,8 +436,10 @@ function startGame() {
     resetState();
   }
 
+  getAudioContext();
   running = true;
   paused = false;
+  playSound('start');
   hideOverlay();
   updateButtons();
   lastTime = performance.now();
@@ -300,9 +453,11 @@ function togglePause() {
   updateButtons();
 
   if (paused) {
+    playSound('pause');
     cancelAnimationFrame(animationId);
     showOverlay('一時停止中', '再開ボタンまたは P キーでゲームに戻ります。');
   } else {
+    playSound('resume');
     hideOverlay();
     lastTime = performance.now();
     animationId = requestAnimationFrame(update);
@@ -314,6 +469,7 @@ function finishGame() {
   paused = false;
   gameOver = true;
   cancelAnimationFrame(animationId);
+  playSound('gameOver');
   showOverlay('ゲームオーバー', `スコア: ${score.toLocaleString('ja-JP')}。スタートで再挑戦できます。`);
   updateButtons();
 }
@@ -423,7 +579,7 @@ function drawNext() {
 }
 
 function handleKeydown(event) {
-  const keys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', ' ', 'Spacebar', 'p', 'P', 'x', 'X'];
+  const keys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', ' ', 'Spacebar', 'p', 'P', 'x', 'X', 'm', 'M'];
   if (keys.includes(event.key)) {
     event.preventDefault();
   }
@@ -451,6 +607,10 @@ function handleKeydown(event) {
     case 'P':
       togglePause();
       break;
+    case 'm':
+    case 'M':
+      toggleSound();
+      break;
     default:
       break;
   }
@@ -471,7 +631,11 @@ function handleTouchAction(event) {
 
 startButton.addEventListener('click', startGame);
 pauseButton.addEventListener('click', togglePause);
-resetButton.addEventListener('click', resetState);
+resetButton.addEventListener('click', () => {
+  resetState();
+  playSound('reset');
+});
+soundButton.addEventListener('click', toggleSound);
 document.addEventListener('keydown', handleKeydown);
 document.querySelectorAll('.touch-controls button').forEach((button) => {
   button.addEventListener('click', handleTouchAction);

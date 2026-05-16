@@ -188,8 +188,11 @@ canvas {
 .actions,
 .touch-controls {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
   gap: 10px;
+}
+
+.actions {
+  grid-template-columns: repeat(2, 1fr);
 }
 
 .touch-controls {
@@ -227,6 +230,15 @@ button:disabled {
 
 #pause-button {
   background: linear-gradient(135deg, var(--accent-2), #ff8bd1);
+}
+
+#sound-button {
+  background: linear-gradient(135deg, #9cf6ff, #d4b1ff);
+}
+
+#sound-button[aria-pressed="false"] {
+  color: var(--text);
+  background: linear-gradient(135deg, #4d5f7a, #25324d);
 }
 
 .help ul {
